@@ -1,48 +1,70 @@
+import os
+import csv
+from datetime import datetime
 from scapy.all import sniff
 from scapy.layers.inet import IP, TCP, UDP
+from scapy.layers.inet6 import IPv6
+
+# Dynamically find your absolute project directory
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+CSV_FILE_PATH = os.path.join(DATA_DIR, "captured_packets.csv")
+
+def initialize_csv():
+    """Ensures the target folder exists and creates a pristine spreadsheet file."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    
+    if not os.path.exists(CSV_FILE_PATH):
+        with open(CSV_FILE_PATH, mode="w", newline="", encoding="utf-8") as file:
+            writer = csv.writer(file)
+            writer.writerow([
+                "Timestamp", "Protocol", "Source_IP", "Source_Port", 
+                "Destination_IP", "Destination_Port", "Packet_Size_Bytes"
+            ])
+    print(f"[*] Absolute Path to your Spreadsheet Database:\n    -> {CSV_FILE_PATH}\n")
 
 def process_packet(packet):
-    """
-    This advanced callback function inspects each packet, checks if it's an 
-    IPv4 packet, filters its protocol layer, and extracts key data fields.
-    """
-    # 1. We only want to look at packets containing an IP layer (IPv4)
+    """Processes traffic and forces an instant hard drive save."""
+    src_ip, dst_ip = "Unknown", "Unknown"
+    protocol = "Other"
+    src_port, dst_port = "N/A", "N/A"
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    packet_size = len(packet)
+
+    # 1. Identify Network Layer (IPv4 or IPv6)
     if packet.haslayer(IP):
-        ip_layer = packet[IP]
-        
-        # Pull out the core network layer information
-        src_ip = ip_layer.src          # Source IP Address
-        dst_ip = ip_layer.dst          # Destination IP Address
-        packet_size = len(packet)      # Packet length/size
-        
-        # Set up default placeholders for the transport layer fields
-        protocol = "Other"
-        src_port = "N/A"
-        dst_port = "N/A"
+        src_ip = packet[IP].src
+        dst_ip = packet[IP].dst
+    elif packet.haslayer(IPv6):
+        src_ip = packet[IPv6].src
+        dst_ip = packet[IPv6].dst
+    else:
+        return # Skip background noise like ARP
 
-        # 2. Check if the transport layer is using TCP
-        if packet.haslayer(TCP):
-            protocol = "TCP"
-            src_port = packet[TCP].sport    # Source Port
-            dst_port = packet[TCP].dport    # Destination Port
-            
-        # 3. Check if the transport layer instead uses UDP
-        elif packet.haslayer(UDP):
-            protocol = "UDP"
-            src_port = packet[UDP].sport    # Source Port
-            dst_port = packet[UDP].dport    # Destination Port
-            
-        # 4. Print the extracted information cleanly on the console screen
-        print("-" * 60)
-        print(f"Protocol: {protocol:<6} | Size: {packet_size:<5} bytes")
-        print(f"Source Connection:      {src_ip}:{src_port}")
-        print(f"Destination Connection: {dst_ip}:{dst_port}")
+    # 2. Identify Transport Layer (TCP or UDP)
+    if packet.haslayer(TCP):
+        protocol = "TCP"
+        src_port = packet[TCP].sport
+        dst_port = packet[TCP].dport
+    elif packet.haslayer(UDP):
+        protocol = "UDP"
+        src_port = packet[UDP].sport
+        dst_port = packet[UDP].dport
 
-print("=== Starting Advanced Info Extraction Sniffer ===")
-print("Listening for incoming traffic... (Capturing 5 sample packets)")
+    # 3. Print out to the terminal
+    print(f"[{protocol}] {src_ip}:{src_port} -> {dst_ip}:{dst_port} ({packet_size} B)")
 
-# Sniff 5 IPv4 network packets to inspect our formatting
-sniff(prn=process_packet, count=5)
+    # 4. Save directly to the CSV file
+    with open(CSV_FILE_PATH, mode="a", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+        writer.writerow([timestamp, protocol, src_ip, src_port, dst_ip, dst_port, packet_size])
+        file.flush() # Force immediate save
 
-print("-" * 60)
-print("=== Extraction Complete ===")
+# --- ENGINE START ---
+initialize_csv()
+print("=== Starting Persistent Logging Network Sniffer ===")
+print("Capturing 100 packets so you have time to generate web traffic...\n")
+
+sniff(prn=process_packet, count=100)
+
+print("\n=== Sniffing Milestone Complete! ===")

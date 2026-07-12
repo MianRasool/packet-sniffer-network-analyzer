@@ -1,78 +1,54 @@
 import os
 import pandas as pd
-import matplotlib.pyplot as plt
 
-# Dynamically find your absolute project directory
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CSV_FILE_PATH = os.path.join(PROJECT_ROOT, "data", "captured_packets.csv")
-FIGURES_DIR = os.path.join(PROJECT_ROOT, "figures")
+# Dynamically resolve paths relative to project root
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CSV_FILE_PATH = os.path.join(BASE_DIR, "data", "captured_packets.csv")
 
 def analyze_traffic():
-    print("=== Network Traffic Analyzer ===")
-    
+    """Reads the captured packet database and prints terminal statistics."""
+    print("=" * 65)
+    print("      NETWORK TRAFFIC ANALYZER")
+    print("=" * 65)
+
     if not os.path.exists(CSV_FILE_PATH):
-        print("[-] Error: Could not find captured_packets.csv. Please run the sniffer first!")
+        print(f"[!] Error: Could not find '{CSV_FILE_PATH}'.")
         return
 
     try:
         df = pd.read_csv(CSV_FILE_PATH)
-    except pd.errors.EmptyDataError:
-        print("[-] The CSV file is empty. Please capture some traffic first.")
+        df.columns = df.columns.str.strip()
+    except Exception as e:
+        print(f"[!] Error loading CSV: {e}")
         return
 
     if df.empty:
-        print("[-] No data found in the CSV.")
+        print("[-] The database contains no packet records.")
         return
 
     # --- TERMINAL STATISTICS ---
-    total_packets = len(df)
-    print(f"\n[*] Total Packets Analyzed: {total_packets}")
+    print(f"\n[*] Total Packets Analyzed: {len(df)}")
 
     print("\n[*] Protocol Breakdown:")
+    print("-" * 25)
     print(df['Protocol'].value_counts().to_string())
 
     print("\n[*] Top 5 Most Active Source IPs:")
+    print("-" * 35)
     print(df['Source_IP'].value_counts().head(5).to_string())
 
-    # --- CHART 1: PROTOCOL DISTRIBUTION ---
-    print("\n[*] Generating Protocol Chart...")
-    plt.figure(figsize=(8, 5))
-    protocol_counts = df['Protocol'].value_counts()
-    protocol_counts.plot(kind='bar', color=['#4C72B0', '#DD8452', '#55A868'])
-    
-    plt.title('Network Traffic by Protocol')
-    plt.xlabel('Transport Protocol')
-    plt.ylabel('Number of Packets Captured')
-    plt.xticks(rotation=0)
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.tight_layout()
-    
-    os.makedirs(FIGURES_DIR, exist_ok=True)
-    protocol_fig_path = os.path.join(FIGURES_DIR, "protocol_distribution.png")
-    plt.savefig(protocol_fig_path)
-    print(f"[*] Chart 1 saved to: {protocol_fig_path}")
-    plt.show() # This will pause the script and show the first graph
+    print("\n[*] Top 5 Most Active Destination IPs:")
+    print("-" * 38)
+    print(df['Destination_IP'].value_counts().head(5).to_string())
 
-    # --- CHART 2: TOP IP ADDRESSES ---
-    print("[*] Generating Top IP Addresses Chart...")
-    plt.figure(figsize=(10, 5))
-    
-    # Isolate only the top 5 IPs so the graph isn't too crowded
-    top_ips = df['Source_IP'].value_counts().head(5)
-    top_ips.plot(kind='bar', color='#C44E52')
-    
-    plt.title('Top 5 Most Active Source IP Addresses')
-    plt.xlabel('Source IP Address')
-    plt.ylabel('Packet Count')
-    plt.xticks(rotation=15) # Slightly tilt the IPs so they don't overlap
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.tight_layout()
-    
-    ip_fig_path = os.path.join(FIGURES_DIR, "top_source_ips.png")
-    plt.savefig(ip_fig_path)
-    print(f"[*] Chart 2 saved to: {ip_fig_path}")
-    plt.show() # This will show the second graph
+    print("\n[*] Top 5 Most Used Destination Ports:")
+    print("-" * 38)
+    valid_ports = df[df['Destination_Port'] != "N/A"]
+    if not valid_ports.empty:
+        print(valid_ports['Destination_Port'].value_counts().head(5).to_string())
+    else:
+        print("No valid destination ports found.")
+        
 
-# --- ENGINE START ---
 if __name__ == "__main__":
     analyze_traffic()
